@@ -1,0 +1,24 @@
+{
+  // Opens one agent's container in VS Code.
+  // Use "Dev Containers: Open Folder in Container..." on this kit's folder and
+  // pick "agent: consumer-metrics". Open each agent in its own VS Code window.
+  "name": "agent: consumer-metrics",
+  "dockerComposeFile": ["../../compose.yaml"],
+  "service": "consumer-metrics",
+  "runServices": ["proxy", "consumer-metrics"],
+  "workspaceFolder": "/workspace/inkproof-consumer-metrics",
+  "remoteUser": "agent",
+  "updateRemoteUserUID": false,
+
+  // Closing the window must not stop the agent.
+  "shutdownAction": "none",
+
+  "customizations": {
+    "vscode": {
+      "extensions": ["leanprover.lean4", "anthropic.claude-code"],
+      "settings": {
+        "remote.autoForwardPorts": false
+      }
+    }
+  }
+}

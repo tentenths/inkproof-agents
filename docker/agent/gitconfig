@@ -1,0 +1,10 @@
+# System git configuration for agent containers.
+[credential "https://github.com"]
+	# Pick the write or read token by repository path.
+	helper =
+	helper = /usr/local/bin/git-credential-agent
+	useHttpPath = true
+[push]
+	autoSetupRemote = true
+[init]
+	defaultBranch = main

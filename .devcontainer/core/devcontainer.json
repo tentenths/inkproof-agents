@@ -1,0 +1,24 @@
+{
+  // Opens one agent's container in VS Code.
+  // Use "Dev Containers: Open Folder in Container..." on this kit's folder and
+  // pick "agent: core". Open each agent in its own VS Code window.
+  "name": "agent: core",
+  "dockerComposeFile": ["../../compose.yaml"],
+  "service": "core",
+  "runServices": ["proxy", "core"],
+  "workspaceFolder": "/workspace/inkproof-core",
+  "remoteUser": "agent",
+  "updateRemoteUserUID": false,
+
+  // Closing the window must not stop the agent.
+  "shutdownAction": "none",
+
+  "customizations": {
+    "vscode": {
+      "extensions": ["leanprover.lean4", "anthropic.claude-code"],
+      "settings": {
+        "remote.autoForwardPorts": false
+      }
+    }
+  }
+}

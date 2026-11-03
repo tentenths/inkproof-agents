@@ -1,0 +1,46 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(lake:*)",
+      "Bash(lean:*)",
+      "Bash(lasm:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git switch:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git pull:*)",
+      "Bash(git fetch:*)",
+      "Bash(git push:*)",
+      "Bash(gh issue:*)",
+      "Bash(gh pr:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(grep:*)",
+      "Bash(find:*)"
+    ],
+    "deny": [
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git push --force-with-lease:*)",
+      "Bash(git tag:*)",
+      "Bash(git config:*)",
+      "Bash(gh repo:*)",
+      "Bash(gh api:*)",
+      "Bash(gh auth:*)",
+      "Bash(gh release:*)",
+      "Bash(curl:*)",
+      "Bash(wget:*)"
+    ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "/usr/local/bin/check-inbox.sh" }
+        ]
+      }
+    ]
+  }
+}

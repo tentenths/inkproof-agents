@@ -1,0 +1,24 @@
+{
+  // Opens one agent's container in VS Code.
+  // Use "Dev Containers: Open Folder in Container..." on this kit's folder and
+  // pick "agent: coordinator". Open each agent in its own VS Code window.
+  "name": "agent: coordinator",
+  "dockerComposeFile": ["../../compose.yaml"],
+  "service": "coordinator",
+  "runServices": ["proxy", "coordinator"],
+  "workspaceFolder": "/workspace/inkproof-coordination",
+  "remoteUser": "agent",
+  "updateRemoteUserUID": false,
+
+  // Closing the window must not stop the agent.
+  "shutdownAction": "none",
+
+  "customizations": {
+    "vscode": {
+      "extensions": ["leanprover.lean4", "anthropic.claude-code"],
+      "settings": {
+        "remote.autoForwardPorts": false
+      }
+    }
+  }
+}

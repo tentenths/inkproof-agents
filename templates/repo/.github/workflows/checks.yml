@@ -1,0 +1,63 @@
+# Required status check for every library and consumer repository.
+# Agents' tokens have no Workflows permission, so they cannot edit this file.
+name: checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash   # bash with -eo pipefail
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # If your repositories are private, Lake needs a read-only token to fetch
+      # dependencies: store one as the DEPS_READ_TOKEN secret and uncomment.
+      # - name: Credentials for private dependencies
+      #   run: git config --global url."https://x-access-token:${{ secrets.DEPS_READ_TOKEN }}@github.com/".insteadOf "https://github.com/"
+
+      - name: Install elan
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh \
+            | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: Internal dependencies pinned to release tags
+        run: scripts/check-pins.sh
+
+      - name: Build, failing on sorry
+        run: |
+          lake build 2>&1 | tee build.log
+          if grep -q "declaration uses 'sorry'" build.log; then
+            echo "::error::A declaration uses sorry"
+            exit 1
+          fi
+
+      - name: Tests
+        run: lake test
+
+      - name: API lock is up to date
+        run: |
+          if [ -x scripts/api-lock.sh ]; then
+            scripts/api-lock.sh > API.lock.generated
+            diff -u API.lock API.lock.generated
+          else
+            echo "::warning::scripts/api-lock.sh not implemented yet; skipping"
+          fi
+
+      - name: CHANGELOG updated
+        if: github.event_name == 'pull_request'
+        run: |
+          git diff --name-only "origin/${{ github.base_ref }}...HEAD" | grep -qx CHANGELOG.md \
+            || { echo "::error::Describe the change in CHANGELOG.md"; exit 1; }

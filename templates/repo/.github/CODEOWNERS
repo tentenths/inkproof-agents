@@ -1,0 +1,6 @@
+# Replace HUMAN_USER with your GitHub username.
+# With "require review from code owners" on main, any pull request touching
+# these paths waits for your review.
+/API.lock          @paulbutcher
+/.github/          @paulbutcher
+/lean-toolchain    @paulbutcher

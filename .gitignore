@@ -1,0 +1,8 @@
+# Local configuration and credentials: never commit these.
+.env
+secrets/**
+!secrets/README.md
+
+# Editor and OS clutter
+.DS_Store
+*.swp

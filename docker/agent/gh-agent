@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Wrapper for the GitHub CLI that picks a token like git-credential-agent:
+# the agent's own repository (the default) gets the write token; any other
+# repository named with -R/--repo, and `gh search`, get the read token.
+target=""
+args=("$@")
+for ((i = 0; i < ${#args[@]}; i++)); do
+  case "${args[i]}" in
+    -R|--repo) target="${args[i+1]:-}" ;;
+    --repo=*)  target="${args[i]#--repo=}" ;;
+  esac
+done
+
+own="${GH_OWNER}/${AGENT_REPO}"
+if [ "${1:-}" = "search" ]; then
+  token_file=/run/secrets/read_token
+elif [ -z "$target" ] || [ "${target,,}" = "${own,,}" ]; then
+  token_file=/run/secrets/write_token
+else
+  token_file=/run/secrets/read_token
+fi
+
+GH_TOKEN="$(tr -d '[:space:]' < "$token_file")" exec /usr/bin/gh "$@"

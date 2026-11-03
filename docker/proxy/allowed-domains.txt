@@ -1,0 +1,22 @@
+# One domain per line. A leading dot also allows subdomains.
+# Keep this list as short as possible; check `docker compose logs proxy`
+# for TCP_DENIED entries when something legitimate is blocked.
+
+# Claude Code
+.anthropic.com
+.claude.ai
+.claude.com
+
+# GitHub (git, API, CLI) plus Lean toolchain, Lake dependencies, Reservoir
+.github.com
+.githubusercontent.com
+.lean-lang.org
+
+# npm (Lasm and its dependencies)
+registry.npmjs.org
+
+# --- Only if you use VS Code (extensions and its server inside containers) ---
+# marketplace.visualstudio.com
+# .gallerycdn.vsassets.io
+# .vscode-cdn.net
+# update.code.visualstudio.com

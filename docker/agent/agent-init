@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Container entrypoint: clone the agent's own repository on first start,
+# then idle until someone attaches (scripts/agent.sh or VS Code).
+set -uo pipefail
+dir="/workspace/${AGENT_REPO}"
+if [ ! -d "${dir}/.git" ]; then
+  git clone "https://github.com/${GH_OWNER}/${AGENT_REPO}.git" "$dir" \
+    || echo "agent-init: clone of ${GH_OWNER}/${AGENT_REPO} failed; check tokens and proxy" >&2
+fi
+exec sleep infinity
