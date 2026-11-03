@@ -1,10 +1,22 @@
 #!/usr/bin/env bash
 # Container entrypoint: clone the agent's own repository on first start,
 # then idle until someone attaches (scripts/agent.sh or VS Code).
+# The clone is retried for a few minutes, so a proxy that is still starting
+# (or briefly down) doesn't leave the agent without its repository.
 set -uo pipefail
 dir="/workspace/${AGENT_REPO}"
+url="https://github.com/${GH_OWNER}/${AGENT_REPO}.git"
+
 if [ ! -d "${dir}/.git" ]; then
-  git clone "https://github.com/${GH_OWNER}/${AGENT_REPO}.git" "$dir" \
-    || echo "agent-init: clone of ${GH_OWNER}/${AGENT_REPO} failed; check tokens and proxy" >&2
+  for attempt in $(seq 1 30); do
+    if git clone -q "$url" "$dir"; then
+      echo "agent-init: cloned ${GH_OWNER}/${AGENT_REPO}"
+      break
+    fi
+    echo "agent-init: clone attempt ${attempt} failed; retrying in 10s" >&2
+    sleep 10
+  done
+  [ -d "${dir}/.git" ] || echo "agent-init: giving up on cloning ${GH_OWNER}/${AGENT_REPO}; check tokens and proxy, then restart this container" >&2
 fi
+
 exec sleep infinity
