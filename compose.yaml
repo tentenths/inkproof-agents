@@ -5,6 +5,9 @@
 # (docker/proxy/allowed-domains.txt).
 #
 # Each agent clones its own repository from GitHub into its workspace volume.
+# working_dir stays at /workspace: if it named the repository directory,
+# Docker would create that directory as root and the agent couldn't clone
+# into it.
 # What it may write to is decided by its GitHub tokens (secrets/<agent>/) and
 # by the rulesets on each repository, not by mounts.
 #
@@ -51,7 +54,7 @@ services:
   coordinator:
     <<: *agent
     hostname: coordinator
-    working_dir: /workspace/inkproof-coordination
+    working_dir: /workspace
     environment:
       <<: *agent-env
       AGENT_NAME: coordinator
@@ -69,7 +72,7 @@ services:
   core:
     <<: *agent
     hostname: core
-    working_dir: /workspace/inkproof-core
+    working_dir: /workspace
     environment:
       <<: *agent-env
       AGENT_NAME: core
@@ -87,7 +90,7 @@ services:
   scale:
     <<: *agent
     hostname: scale
-    working_dir: /workspace/inkproof-scale
+    working_dir: /workspace
     environment:
       <<: *agent-env
       AGENT_NAME: scale
@@ -105,7 +108,7 @@ services:
   consumer-metrics:
     <<: *agent
     hostname: consumer-metrics
-    working_dir: /workspace/inkproof-consumer-metrics
+    working_dir: /workspace
     environment:
       <<: *agent-env
       AGENT_NAME: consumer-metrics
