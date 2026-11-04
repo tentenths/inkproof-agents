@@ -99,7 +99,9 @@ Permissions:
 
 - **write-token**: Contents read/write, Pull requests read/write, Issues
   read/write. (Metadata read is added automatically.)
-- **read-token**: Contents read-only, Issues read/write.
+- **read-token**: Contents read-only, Issues read/write. The coordinator's
+  read token also needs Pull requests read/write, so it can comment on
+  pull requests that claim to complete a brief.
 - **Never grant**: Administration, Workflows, Secrets, Actions,
   Environments, or anything else.
 
