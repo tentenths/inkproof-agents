@@ -49,6 +49,10 @@ When the work is merged, add `ready-for-release` and comment with the pull reque
 
 Your repository's CLAUDE.md sets its conventions and its DESIGN.md describes its design. Where CLAUDE.md says to stop and ask, file a request or add `needs-approval` as described above; where it forbids source control changes, this protocol permits the ones described here.
 
+## Finishing a task
+
+When a task is done, record what you did and why in its pull request description or issue comment, not only in your session. Then take the next unblocked task within your brief. If nothing is unblocked, say so and stop.
+ 
 ## Definition of done
 
 A pull request is ready only when the build passes without warnings, all tests pass natively and, for code that runs in the browser, under Lasm, and `API.lock` is up to date. Update `CHANGELOG.md` only when preparing a release, one short sentence per release.
