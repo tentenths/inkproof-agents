@@ -34,8 +34,8 @@ docker/agent/                agent image and the policy baked into it
   gitconfig, agent-init      git setup; clone own repo on first start
 docker/proxy/                egress proxy (squid) and domain allowlist
 roles/<agent>.md             per-agent role, mounted as the managed CLAUDE.md
-templates/repo/              copy into every repository: CI, pin check,
-                             request issue template, CODEOWNERS
+templates/repo/              copy into every repository: CLAUDE.md, CI, pin
+                             check, request issue template, CODEOWNERS
 templates/rulesets/          rulesets applied by scripts/setup-repo.sh
 .devcontainer/<agent>/       one devcontainer.json per agent, for VS Code
 scripts/                     up, agent, setup-repo, status, release
@@ -49,7 +49,7 @@ scripts/                     up, agent, setup-repo, status, release
 | Agent can read dependencies and file requests on them | Read token: contents read-only, issues read/write |
 | No force pushes, deleting `main`, or direct pushes to `main` | `main` ruleset: pull requests only, no deletion or force push |
 | Only the human releases | `release-tags` ruleset: only admins create `v*` tags |
-| Builds, tests, no `sorry`, CHANGELOG | Required `checks` status check |
+| Builds without warnings, tests pass, no `sorry` | Required `checks` status check |
 | Agents can't weaken CI | Tokens lack Workflows permission; `.github/` owned by you |
 | API and theorem changes need you | `API.lock` in CODEOWNERS; code-owner review required |
 | Depend only on releases | `check-pins.sh` in CI rejects non-tag pins to your repos |
@@ -121,9 +121,10 @@ check each token's repository list and the machine user's permissions.
 
 For each repository:
 
-1. Copy `templates/repo/` into it (`.github/`, `scripts/check-pins.sh`,
-   `scripts/api-lock.sh.example`), replace `HUMAN_USER` in CODEOWNERS, and
-   push as yourself. Create `CHANGELOG.md` and, when you have a generator,
+1. Copy `templates/repo/` into it (`CLAUDE.md`, `.github/`,
+   `scripts/check-pins.sh`, `scripts/api-lock.sh.example`), replace
+   `HUMAN_USER` in CODEOWNERS, and push as yourself. Create `CHANGELOG.md`.
+   The library's agent writes `DESIGN.md` and, once it has a generator,
    `API.lock`.
 2. Run `scripts/setup-repo.sh inkproof-core 1` (and so on) with your own `gh` login. It creates
    the request labels and the rulesets.
@@ -230,6 +231,8 @@ current documentation, then remove it from this list.
 - [ ] Code-owner review is still enforced with zero required approvals
       (level 2).
 - [ ] Lasm's prerequisites beyond Node and the Lean toolchain.
+- [ ] `claude mcp add` in `agent-init` registers lean-lsp-mcp, and its
+      tools appear in each agent's session.
 - [ ] `CLAUDE_CONFIG_DIR` keeps all Claude Code state inside the volume.
 
 ## Known risks

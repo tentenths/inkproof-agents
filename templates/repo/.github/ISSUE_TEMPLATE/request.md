@@ -5,13 +5,14 @@ labels: request, new
 ---
 
 From: <requesting agent>
+
 Building against: <release tag you use, e.g. v0.3.0>
+
 Priority: low | normal | high
 
 ## Use case
 
-What you are building and why you need this. Describe the need, not an
-implementation inside this library.
+What you are building and why you need this. Describe the need, not an implementation inside this library.
 
 ## Current limitation
 

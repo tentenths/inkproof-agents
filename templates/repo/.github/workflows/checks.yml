@@ -55,9 +55,3 @@ jobs:
           else
             echo "::warning::scripts/api-lock.sh not implemented yet; skipping"
           fi
-
-      - name: CHANGELOG updated
-        if: github.event_name == 'pull_request'
-        run: |
-          git diff --name-only "origin/${{ github.base_ref }}...HEAD" | grep -qx CHANGELOG.md \
-            || { echo "::error::Describe the change in CHANGELOG.md"; exit 1; }

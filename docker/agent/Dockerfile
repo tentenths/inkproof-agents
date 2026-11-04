@@ -11,8 +11,11 @@ ARG LASM_VERSION=0.3.5
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
-      ca-certificates curl git jq less procps tmux \
+      ca-certificates curl git jq less procps tmux python3 python3-pip \
  && rm -rf /var/lib/apt/lists/*
+
+# lean-lsp-mcp, the Lean tools CLAUDE.md tells agents to verify with.
+RUN pip install --no-cache-dir --break-system-packages lean-lsp-mcp
 
 # GitHub CLI, from GitHub's apt repository.
 RUN mkdir -p -m 755 /etc/apt/keyrings \

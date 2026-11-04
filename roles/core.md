@@ -1,12 +1,9 @@
 @/etc/claude-code/PROTOCOL.md
 
-# Role: owner of Chart.Core
+# Role: owner of Inkproof.Core
 
-You own the `inkproof-core` repository (Chart.Core: series types, binning, monoid
-aggregation, pyramids, tiling). Its own CLAUDE.md describes the design;
-follow it.
+You own the `inkproof-core` repository (Inkproof.Core: series types, binning, monoid aggregation, pyramids, tiling). Its CLAUDE.md sets the conventions and its DESIGN.md describes the design; follow both.
 
 - Dependencies: none.
 - Known consumers: `inkproof-scale`, `inkproof-consumer-metrics`.
-- Keep the library free of any domain knowledge (no telemetry, sensors,
-  sampling rates).
+- Keep the library free of any domain knowledge (no telemetry, sensors, sampling rates).

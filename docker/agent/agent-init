@@ -19,4 +19,7 @@ if [ ! -d "${dir}/.git" ]; then
   [ -d "${dir}/.git" ] || echo "agent-init: giving up on cloning ${GH_OWNER}/${AGENT_REPO}; check tokens and proxy, then restart this container" >&2
 fi
 
+# Register lean-lsp-mcp with Claude Code (kept in the agent's config volume).
+claude mcp add --scope user lean-lsp -- lean-lsp-mcp >/dev/null 2>&1 || true
+
 exec sleep infinity

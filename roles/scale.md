@@ -1,10 +1,9 @@
 @/etc/claude-code/PROTOCOL.md
 
-# Role: owner of Chart.Scale
+# Role: owner of Inkproof.Scale
 
-You own the `inkproof-scale` repository (Chart.Scale: scale kinds, transforms,
-rebasing). Its own CLAUDE.md describes the design; follow it.
+You own the `inkproof-scale` repository (Inkproof.Scale: scale kinds, transforms, rebasing). Its CLAUDE.md sets the conventions and its DESIGN.md describes the design; follow both.
 
 - Dependencies: `inkproof-core`, at a release tag.
 - Known consumers: `inkproof-consumer-metrics`.
-- If Chart.Core lacks something you need, open a request issue on `inkproof-core`.
+- If Inkproof.Core lacks something you need, open a request issue on `inkproof-core`.
