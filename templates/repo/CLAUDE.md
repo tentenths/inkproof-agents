@@ -79,7 +79,7 @@ Applies to published libraries. An application keeps its tests in the same packa
 ## Proofs and properties
 
 - Prefer the strongest form a claim admits: a proven theorem over a property (Lean's Plausible library) over an example and an expected result. Reach for a weaker form only when the stronger one is out of reach.
-- Write a theorem rather than a property when the claim is about a pure total function and either the case analysis is finite (encodings, mappings between representations) or a counterexample would corrupt output rather than merely look wrong (an invariant a file format or a wire format depends on).
+- Every public function that is pure and total gets a theorem stating what it computes, not only its algebraic laws or invariants. A property takes its place only after a proof attempt fails.
 - Time-box the attempt. If a proof will not close in a few tries, fall back to a property and record the obstacle in a comment, so the next person knows it was weighed and why it failed.
 - Never leave `sorry` or an admitted goal. The `plausible` tactic emits a warning, so it cannot be used here either; write the property out instead.
 - When changing a module that carries properties, re-ask whether each is now provable. A property is a fallback, not a resting place.
