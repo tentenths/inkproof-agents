@@ -142,12 +142,25 @@ For each repository:
 1. `cp .env.example .env` and fill it in.
 2. Pin versions in `docker/agent/Dockerfile` and the proxy image tag in
    `compose.yaml`.
-3. `scripts/up.sh` builds the image, checks the token files exist, starts
-   everything, and each agent clones its repository.
-4. Run `scripts/agent.sh coordinator` (or any agent) and log in to Claude.
+3. Pause the agents, so none starts work before Claude is ready for it:
+   `scripts/pause.sh`. An unattended run that meets
+   a login or other prompt waits until `MAX_RUN_MINUTES` runs out, and the
+   work that started it is lost.
+4. `scripts/up.sh` builds the image, checks the token files exist, starts
+   everything, and each agent clones its repository. Lean toolchains live in
+   the `elan-shared` volume, shared with any other project on this machine
+   that mounts it.
+5. Run `scripts/agent.sh coordinator` (or any agent) and log in to Claude.
    The login is kept in the `claude-agents` volume, which every agent shares,
-   so the others are logged in too. Lean toolchains live in the `elan-shared`
-   volume, shared with any other project on this machine that mounts it.
+   so the others are logged in too.
+6. Run `scripts/agent.sh` once for each agent, and accept the prompts to
+   trust its folder and to allow external imports in CLAUDE.md (the role
+   file imports `PROTOCOL.md`). Claude asks these once for each agent's
+   folder, even though the login is shared.
+7. Run `scripts/resume.sh`.
+
+If the `claude-agents` volume is ever recreated, repeat steps 5 and 6 with
+the agents paused (`scripts/pause.sh`), then resume them.
 
 ## Daily use
 
