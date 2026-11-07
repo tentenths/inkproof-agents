@@ -1,7 +1,20 @@
 #!/usr/bin/env bash
-# Claude Code UserPromptSubmit hook: record that Claude is working, so
-# watch-work leaves the session alone. check-inbox.sh records when it is idle.
-cat > /dev/null
-mkdir -p /workspace/.inkproof
-printf 'busy %s\n' "$(date +%s)" > /workspace/.inkproof/activity
+# Claude Code hook recording whether Claude is working, for watch-work.
+#   activity-hook busy           UserPromptSubmit: Claude has a prompt to work on
+#   activity-hook session-start  SessionStart: a session opened by hand waits
+#                                for a prompt, so it is idle until it gets one
+# check-inbox.sh records idle when Claude stops.
+input="$(cat)"
+state=/workspace/.inkproof
+mkdir -p "$state"
+case "${1:-}" in
+  busy)
+    printf 'busy %s\n' "$(date +%s)" > "$state/activity" ;;
+  session-start)
+    # A run watch-work started has its prompt already, so it stays busy.
+    [ -n "${INKPROOF_RUN:-}" ] && exit 0
+    case "$(printf '%s' "$input" | jq -r '.source // ""')" in
+      startup|resume|clear) printf 'idle %s\n' "$(date +%s)" > "$state/activity" ;;
+    esac ;;
+esac
 exit 0

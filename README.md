@@ -181,7 +181,9 @@ Each agent has at most one session at a time. A run starts in tmux, so you
 can attach to it, and in the `dontAsk` permission mode, so anything
 `managed-settings.json` doesn't allow is refused rather than waiting for you.
 It ends when Claude stops and no one is attached; work found meanwhile waits
-for the next run. Settings in `.env` (defaults in `compose.yaml`):
+for the next run. If Claude never finished a reply, for example because it
+was stuck at a login or trust prompt, the run's work waits again for the
+next one. Settings in `.env` (defaults in `compose.yaml`):
 `POLL_INTERVAL` (300 seconds), `MAX_RUNS_PER_DAY` (20 per agent, UTC days)
 and `MAX_RUN_MINUTES` (240, after which an unattended busy run is stopped).
 When an agent reaches its cap, it opens a `needs-approval` issue on its own
@@ -190,8 +192,9 @@ the same issue until you close it.
 
 - `scripts/agent.sh core` attaches to core's Claude session (in tmux inside
   the container), whether you or `watch-work` started it. Detach with
-  `Ctrl-b d`; the agent keeps running. A session you leave idle and detached
-  is closed when work arrives; `claude --continue` brings it back.
+  `Ctrl-b d`; the agent keeps running. A session you leave detached, idle or
+  never given a prompt, is closed when work arrives; `claude --continue`
+  brings it back.
 - `scripts/status.sh` lists open requests with their state labels, and open
   pull requests, across the `inkproof-` repositories, then each agent's state
   and recent runs: when, what started them, and how they ended (completed,
@@ -318,7 +321,8 @@ current documentation, then remove it from this list.
 - [ ] Running Claude unattended with the shared login is within the terms
       of that account's plan; if not, give unattended runs an API key.
 - [ ] `UserPromptSubmit` fires for the prompt `agent-run` passes on the
-      command line, and `transcript_path` is in the Stop hook's input.
+      command line, `transcript_path` is in the Stop hook's input, and
+      `SessionStart` gives a `source` of `startup`, `resume` or `clear`.
 - [ ] `gh pr list --json` returns `mergeStateStatus` as `BEHIND` for a pull
       request behind `main`, and `gh pr update-branch` exists in the pinned
       `gh`.

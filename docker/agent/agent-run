@@ -3,5 +3,6 @@
 # scripts/agent.sh can attach to it. dontAsk denies anything not allowed by
 # managed-settings.json instead of waiting for a prompt no one will answer.
 state=/workspace/.inkproof
+export INKPROOF_RUN=1   # tells activity-hook this session was not opened by hand
 claude --permission-mode dontAsk "$(cat "$state/prompt")"
 echo "$?" > "$state/exit-status"

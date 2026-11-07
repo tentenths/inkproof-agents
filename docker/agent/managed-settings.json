@@ -58,10 +58,17 @@
     ]
   },
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          { "type": "command", "command": "/usr/local/bin/activity-hook session-start" }
+        ]
+      }
+    ],
     "UserPromptSubmit": [
       {
         "hooks": [
-          { "type": "command", "command": "/usr/local/bin/activity-hook" }
+          { "type": "command", "command": "/usr/local/bin/activity-hook busy" }
         ]
       }
     ],
