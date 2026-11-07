@@ -51,11 +51,12 @@ RUN chmod 0644 /etc/claude-code/* /etc/gitconfig \
 USER agent
 WORKDIR /home/agent
 
-# Lean via elan, with the toolchain Lasm requires preinstalled.
-RUN curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh \
-      | sh -s -- -y --default-toolchain none \
- && /home/agent/.elan/bin/elan toolchain install "${LEAN_TOOLCHAIN}" \
- && /home/agent/.elan/bin/elan default "${LEAN_TOOLCHAIN}"
+# elan and the toolchain Lasm requires are installed by agent-init, into the
+# elan-shared volume mounted over ~/.elan: a RUN layer here would be hidden by
+# the volume as soon as it was mounted. The directory exists only so that a
+# volume created from this image is owned by agent rather than root.
+RUN mkdir -p /home/agent/.elan
 
 ENV PATH=/home/agent/.elan/bin:/usr/local/bin:${PATH} \
-    CLAUDE_CONFIG_DIR=/home/agent/.claude
+    CLAUDE_CONFIG_DIR=/home/agent/.claude \
+    LEAN_TOOLCHAIN=${LEAN_TOOLCHAIN}

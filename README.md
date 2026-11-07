@@ -138,8 +138,10 @@ For each repository:
    `compose.yaml`.
 3. `scripts/up.sh` builds the image, checks the token files exist, starts
    everything, and each agent clones its repository.
-4. For each agent, `scripts/agent.sh <agent>` and log in to Claude once. The
-   login is kept in that agent's volume.
+4. Run `scripts/agent.sh coordinator` (or any agent) and log in to Claude.
+   The login is kept in the `claude-agents` volume, which every agent shares,
+   so the others are logged in too. Lean toolchains live in the `elan-shared`
+   volume, shared with any other project on this machine that mounts it.
 
 ## Daily use
 
@@ -235,7 +237,11 @@ current documentation, then remove it from this list.
 - [ ] Lasm's prerequisites beyond Node and the Lean toolchain.
 - [ ] `claude mcp add` in `agent-init` registers lean-lsp-mcp, and its
       tools appear in each agent's session.
-- [ ] `CLAUDE_CONFIG_DIR` keeps all Claude Code state inside the volume.
+- [ ] `CLAUDE_CONFIG_DIR` keeps all Claude Code state inside the volume, and
+      several Claude Code sessions can share one login without one refresh
+      invalidating the others.
+- [ ] Concurrent use of `elan-shared` (agents and other projects installing
+      toolchains at once) is safe; `agent-init` serialises only the agents.
 
 ## Known risks
 

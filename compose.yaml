@@ -67,7 +67,8 @@ services:
     volumes:
       - ./roles/coordinator.md:/etc/claude-code/CLAUDE.md:ro
       - work-coordinator:/workspace
-      - claude-coordinator:/home/agent/.claude
+      - claude-agents:/home/agent/.claude
+      - elan-shared:/home/agent/.elan
 
   core:
     <<: *agent
@@ -85,7 +86,8 @@ services:
     volumes:
       - ./roles/core.md:/etc/claude-code/CLAUDE.md:ro
       - work-core:/workspace
-      - claude-core:/home/agent/.claude
+      - claude-agents:/home/agent/.claude
+      - elan-shared:/home/agent/.elan
 
   scale:
     <<: *agent
@@ -103,7 +105,8 @@ services:
     volumes:
       - ./roles/scale.md:/etc/claude-code/CLAUDE.md:ro
       - work-scale:/workspace
-      - claude-scale:/home/agent/.claude
+      - claude-agents:/home/agent/.claude
+      - elan-shared:/home/agent/.elan
 
   consumer-metrics:
     <<: *agent
@@ -121,7 +124,8 @@ services:
     volumes:
       - ./roles/consumer-metrics.md:/etc/claude-code/CLAUDE.md:ro
       - work-consumer-metrics:/workspace
-      - claude-consumer-metrics:/home/agent/.claude
+      - claude-agents:/home/agent/.claude
+      - elan-shared:/home/agent/.elan
 
 # Tokens appear inside each container at /run/secrets/write_token and
 # /run/secrets/read_token. Scope them per agent (see README).
@@ -146,8 +150,13 @@ volumes:
   work-core:
   work-scale:
   work-consumer-metrics:
-  # Each agent's Claude Code login and history, never shared.
-  claude-coordinator:
-  claude-core:
-  claude-scale:
-  claude-consumer-metrics:
+  # Claude Code login and history, shared by every agent but kept apart from
+  # your own Claude configuration. History doesn't mix: Claude files it by
+  # working directory, and each agent works in its own /workspace/<repo>.
+  claude-agents:
+  # elan and its toolchains, shared with every other project on this machine
+  # that mounts elan-shared, so a toolchain is downloaded once per machine.
+  # External, so that `docker compose down -v` leaves it alone; scripts/up.sh
+  # and each agent's devcontainer.json create it if it is missing.
+  elan-shared:
+    external: true

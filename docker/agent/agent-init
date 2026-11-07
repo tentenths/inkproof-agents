@@ -19,7 +19,21 @@ if [ ! -d "${dir}/.git" ]; then
   [ -d "${dir}/.git" ] || echo "agent-init: giving up on cloning ${GH_OWNER}/${AGENT_REPO}; check tokens and proxy, then restart this container" >&2
 fi
 
-# Register lean-lsp-mcp with Claude Code (kept in the agent's config volume).
-claude mcp add --scope user lean-lsp -- lean-lsp-mcp >/dev/null 2>&1 || true
+# Install elan if the shared volume doesn't have it yet, and the toolchain Lasm
+# requires, so the first `lake build` is a build rather than a download. The
+# default toolchain is left alone: it belongs to every project sharing the
+# volume. Then register lean-lsp-mcp with Claude Code, in the shared config
+# volume. Every agent starts at once and all of this writes to shared volumes,
+# so the agents take turns.
+(
+  flock 9
+  if [ ! -x "$HOME/.elan/bin/elan" ]; then
+    curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh \
+      | sh -s -- -y --default-toolchain none --no-modify-path
+  fi
+  elan toolchain install "${LEAN_TOOLCHAIN}" \
+    || echo "agent-init: couldn't install ${LEAN_TOOLCHAIN}; check the proxy, then restart this container" >&2
+  claude mcp add --scope user lean-lsp -- lean-lsp-mcp >/dev/null 2>&1 || true
+) 9>"$HOME/.claude/.agent-init.lock"
 
 exec sleep infinity

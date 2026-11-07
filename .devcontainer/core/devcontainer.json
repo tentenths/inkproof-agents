@@ -10,6 +10,10 @@
   "remoteUser": "agent",
   "updateRemoteUserUID": false,
 
+  // Runs on the host. compose.yaml mounts elan-shared as an external volume,
+  // which it will not create itself. Does nothing if it already exists.
+  "initializeCommand": "docker volume create elan-shared",
+
   // Closing the window must not stop the agent.
   "shutdownAction": "none",
 
