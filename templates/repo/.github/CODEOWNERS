@@ -1,6 +1,10 @@
 # Replace HUMAN_USER with your GitHub username.
 # With "require review from code owners" on main, any pull request touching
 # these paths waits for your review.
+# At autonomy level 3, remove the /API.lock line: the coordinator's api-lock
+# check takes its place. Put it back to fall back to a lower level.
 /API.lock          @paulbutcher
 /.github/          @paulbutcher
 /lean-toolchain    @paulbutcher
+# Only in inkproof-coordination.
+/REQUIREMENTS.md   @paulbutcher

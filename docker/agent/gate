@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# The coordinator's way to act as the project's GitHub App, through the
+# gatekeeper. Only the coordinator's container can reach it.
+#   gate verdict <repo> <pr> <sha> pass|fail <summary>
+#       The api-lock check on that pull request; sha is the head you reviewed.
+#   gate release <repo> <note> <issue>...
+#       Release <repo>'s default branch, delivering the ready-for-release
+#       issues given as #n (on <repo>) or repo#n; the note says what you verified.
+set -euo pipefail
+
+usage() { sed -n '2,/^[^#]/p' "$0" | sed '$d; s/^# \{0,1\}//' >&2; exit 2; }
+
+op="${1:-}"
+case "$op" in
+  verdict)
+    [ $# -eq 6 ] && [[ "$3" =~ ^[0-9]+$ ]] || usage
+    body="$(jq -n --arg repo "$2" --argjson pr "$3" --arg sha "$4" --arg result "$5" --arg summary "$6" \
+      '{repo: $repo, pr: $pr, sha: $sha, result: $result, summary: $summary}')" ;;
+  release)
+    [ $# -ge 4 ] || usage
+    repo="$2" note="$3"
+    shift 3
+    issues="$(printf '%s\n' "$@" | jq -R . | jq -sc .)"
+    body="$(jq -n --arg repo "$repo" --arg note "$note" --argjson issues "$issues" \
+      '{repo: $repo, note: $note, issues: $issues}')" ;;
+  *) usage ;;
+esac
+
+response="$(printf '%s' "$body" | curl --noproxy gatekeeper -sS --max-time 300 \
+  -H 'Content-Type: application/json' --data-binary @- -w '\n%{http_code}' \
+  "http://gatekeeper:8080/${op}")" || { echo "gate: the gatekeeper is unreachable (is it running, at autonomy level 3?)" >&2; exit 1; }
+status="${response##*$'\n'}"
+printf '%s' "${response%$'\n'*}" | jq -r '.message // .error'
+[ "$status" = 200 ]

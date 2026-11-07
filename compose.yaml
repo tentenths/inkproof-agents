@@ -40,7 +40,8 @@ x-agent: &agent
     DISABLE_AUTOUPDATER: "1"
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1"
     GH_OWNER: ${GH_OWNER:?set GH_OWNER in .env}
-    TRUSTED_AUTHORS: ${MACHINE_USER:?set MACHINE_USER in .env} ${HUMAN_USER:?set HUMAN_USER in .env}
+    # APP_BOT (level 3) is the GitHub App's account, e.g. inkproof-gatekeeper[bot].
+    TRUSTED_AUTHORS: ${MACHINE_USER:?set MACHINE_USER in .env} ${HUMAN_USER:?set HUMAN_USER in .env} ${APP_BOT:-}
     GIT_AUTHOR_EMAIL: ${MACHINE_EMAIL:?set MACHINE_EMAIL in .env}
     GIT_COMMITTER_EMAIL: ${MACHINE_EMAIL}
     REPO_PREFIX: ${REPO_PREFIX:?set REPO_PREFIX in .env}
@@ -60,9 +61,37 @@ services:
       - ./docker/proxy/allowed-domains.txt:/etc/squid/allowed-domains.txt:ro
     restart: unless-stopped
 
+  # Holds the GitHub App's key (autonomy level 3) and acts as the App for the
+  # coordinator only: it shares the gate network with no other agent. It runs
+  # only with the gatekeeper profile, which scripts/up.sh enables when
+  # secrets/gatekeeper/app-key.pem exists.
+  gatekeeper:
+    build:
+      context: ./docker/gatekeeper
+      args:
+        USER_UID: ${HOST_UID:-1000}
+        USER_GID: ${HOST_GID:-1000}
+    profiles: [gatekeeper]
+    networks: [gate, egress]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      GH_OWNER: ${GH_OWNER}
+      REPO_PREFIX: ${REPO_PREFIX}
+      HUMAN_USER: ${HUMAN_USER}
+      APP_ID: ${APP_ID:-}
+      POLL_INTERVAL: ${GATEKEEPER_POLL_INTERVAL:-60}
+    volumes:
+      # The App's private key, secrets/gatekeeper/app-key.pem. A bind mount
+      # rather than a secret, so levels 1 and 2 need no key file at all.
+      - ./secrets/gatekeeper:/run/gatekeeper:ro
+      - gatekeeper-state:/state
+    restart: unless-stopped
+
   coordinator:
     <<: *agent
     hostname: coordinator
+    networks: [internal, gate]
     working_dir: /workspace
     environment:
       <<: *agent-env
@@ -155,7 +184,9 @@ secrets:
 networks:
   internal:
     internal: true      # no route to the outside world
-  egress: {}            # only the proxy joins this
+  egress: {}            # only the proxy and the gatekeeper join this
+  gate:
+    internal: true      # the coordinator and the gatekeeper, nothing else
 
 volumes:
   # Each agent's clone of its own repository.
@@ -167,6 +198,8 @@ volumes:
   # your own Claude configuration. History doesn't mix: Claude files it by
   # working directory, and each agent works in its own /workspace/<repo>.
   claude-agents:
+  # What the gatekeeper has already seen (needs-human labels).
+  gatekeeper-state:
   # elan and its toolchains, shared with every other project on this machine
   # that mounts elan-shared, so a toolchain is downloaded once per machine.
   # External, so that `docker compose down -v` leaves it alone; scripts/up.sh

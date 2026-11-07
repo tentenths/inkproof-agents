@@ -24,6 +24,7 @@ keeps it separate from the organisation's other work.
 compose.yaml                 proxy + one service per agent
 .env.example                 organisation, repo prefix, machine user, your username, UID/GID
 secrets/<agent>/             write-token and read-token files (never committed)
+secrets/gatekeeper/          app-key.pem, the GitHub App's private key (level 3)
 docker/agent/                agent image and the policy baked into it
   Dockerfile
   managed-settings.json      permissions + Stop hook (agents cannot edit)
@@ -34,6 +35,8 @@ docker/agent/                agent image and the policy baked into it
   git-credential-agent       own repo -> write token, others -> read token
   gh-agent                   same choice for the GitHub CLI
   gitconfig, agent-init      git setup; clone own repo on first start
+  gate                       the coordinator's commands for the gatekeeper (level 3)
+docker/gatekeeper/           holds the GitHub App's key; acts as the App (level 3)
 docker/proxy/                egress proxy (squid) and domain allowlist
 roles/<agent>.md             per-agent role, mounted as the managed CLAUDE.md
 templates/repo/              copy into every repository: CLAUDE.md, CI, pin
@@ -41,7 +44,8 @@ templates/repo/              copy into every repository: CLAUDE.md, CI, pin
 templates/rulesets/          rulesets applied by scripts/setup-repo.sh
 .devcontainer/<agent>/       one devcontainer.json per agent, for VS Code
 control/                     pause state, mounted read-only into agents (not committed)
-scripts/                     up, agent, setup-repo, status, release, pause, resume
+scripts/                     up, agent, setup-repo, status, release, pause,
+                             resume, milestone-diff
 ```
 
 ## How the boundaries are enforced
@@ -51,12 +55,16 @@ scripts/                     up, agent, setup-repo, status, release, pause, resu
 | Agent writes only its own repository | Write token scoped to that one repository |
 | Agent can read dependencies and file requests on them | Read token: contents read-only, issues read/write |
 | No force pushes, deleting `main`, or direct pushes to `main` | `main` ruleset: pull requests only, no deletion or force push |
-| Only the human releases | `release-tags` ruleset: only admins create `v*` tags |
+| Only the human releases (levels 1 and 2) | `release-tags` ruleset: only admins create `v*` tags |
+| At level 3, releases only through the gatekeeper, once work is `ready-for-release`, the coordinator has verified it, and `CHANGELOG.md` has the computed version's entry | The GitHub App is the only other bypass actor on `release-tags`; its key is only in the gatekeeper |
 | Builds without warnings, tests pass, no `sorry` | Required `checks` status check |
 | Agents can't weaken CI | Tokens lack Workflows permission; `.github/` owned by you |
-| API and theorem changes need you | `API.lock` in CODEOWNERS; code-owner review required |
+| API and theorem changes need you (levels 1 and 2) | `API.lock` in CODEOWNERS; code-owner review required |
+| At level 3, API and theorem changes need the coordinator's verdict | Required `api-lock` check, accepted only from the GitHub App; the gatekeeper answers only the coordinator's container |
+| Every API change still reaches you once | `scripts/milestone-diff.sh` at milestone acceptance |
+| `.github/`, `lean-toolchain` and `REQUIREMENTS.md` changes need you | CODEOWNERS; code-owner review required, at every level |
 | Depend only on releases | `check-pins.sh` in CI rejects non-tag pins to your repos |
-| Untrusted issues can't steer agents | Hook and protocol only consider `MACHINE_USER` and `HUMAN_USER` |
+| Untrusted issues can't steer agents | Hook, watcher and protocol only consider `MACHINE_USER`, `HUMAN_USER` and, at level 3, the App (`APP_BOT`) |
 | No internet except essentials | Internal Docker network; squid allowlist is the only exit |
 | Agents can't loosen their own rules | Settings, protocol, role, git config are root-owned |
 | Only the human pauses and resumes agents | `control/` is mounted read-only |
@@ -175,7 +183,7 @@ finds work from a trusted author:
   `blocked` issues names in a `Blocked-by:` line;
 - for the coordinator, across the `inkproof-` repositories: a request filed,
   a pull request opened or merged, a release published, and
-  `ready-for-release` or `needs-approval` added or removed.
+  `ready-for-release`, `needs-human` or `needs-verdict` added or removed.
 
 Each agent has at most one session at a time. A run starts in tmux, so you
 can attach to it, and in the `dontAsk` permission mode, so anything
@@ -186,9 +194,14 @@ was stuck at a login or trust prompt, the run's work waits again for the
 next one. Settings in `.env` (defaults in `compose.yaml`):
 `POLL_INTERVAL` (300 seconds), `MAX_RUNS_PER_DAY` (20 per agent, UTC days)
 and `MAX_RUN_MINUTES` (240, after which an unattended busy run is stopped).
-When an agent reaches its cap, it opens a `needs-approval` issue on its own
+When an agent reaches its cap, it opens a `needs-human` issue on its own
 repository that mentions you, so GitHub notifies you; later caps comment on
 the same issue until you close it.
+
+Anything that needs your decision is labelled `needs-human` and listed in
+the coordinator's `NEEDS-HUMAN.md`. At level 3 the gatekeeper mentions you on
+every issue that gets the label, so you can stop watching the repositories
+and rely on those notifications alone.
 
 - `scripts/agent.sh core` attaches to core's Claude session (in tmux inside
   the container), whether you or `watch-work` started it. Detach with
@@ -206,8 +219,9 @@ the same issue until you close it.
   `scripts/resume.sh` switches it back on, in your name, and work that
   arrived meanwhile starts.
 - Review and merge pull requests on GitHub as usual.
-- `scripts/release.sh inkproof-core v0.2.0` tags `main` and creates a GitHub release.
-  Consumers then bump their pinned version, for example in `lakefile.toml`:
+- Below level 3, `scripts/release.sh inkproof-core v0.2.0` tags `main` and
+  creates a GitHub release. At level 3 the coordinator releases. Either way,
+  consumers then bump their pinned version, for example in `lakefile.toml`:
 
   ```toml
   [[require]]
@@ -217,6 +231,11 @@ the same issue until you close it.
   ```
 
 - `docker compose logs proxy | grep DENIED` shows blocked network requests.
+- When you accept a milestone, `scripts/milestone-diff.sh <start-date>` shows
+  every library's `API.lock` diff across it, including everything the
+  coordinator passed at level 3. A change you reject is fixed forward: file
+  it as a brief, and its fix ships in a new release. Never move or delete a
+  published tag.
 
 ## Autonomy levels
 
@@ -229,10 +248,46 @@ can raise it one library at a time.
   once checks pass. Pull requests touching `API.lock`, `.github/` or
   `lean-toolchain` still need your review, and in practice that is most
   library pull requests.
-- **Level 3 (not in the kit yet)**: agents release patch and minor versions
-  when `API.lock` is unchanged. This needs a release workflow allowed to
-  create tags, for example a GitHub App added as a bypass actor on the
-  `release-tags` ruleset.
+- **Level 3**: as level 2, but the coordinator, not you, gates `API.lock` and
+  releases. A pull request that changes `API.lock` can't merge until the
+  coordinator records a passing `api-lock` verdict for its head commit; one
+  that doesn't passes that check at once. The coordinator releases work that
+  is `ready-for-release` and meets its acceptance criteria, at the version
+  the gatekeeper computes from the `API.lock` diff since the last tag
+  (before 1.0: minor if it changed, patch otherwise; from 1.0: major if a
+  line was removed or changed, minor if lines were only added), and only
+  if `CHANGELOG.md` has a `## vX.Y.Z` entry for it. Changes to `.github/`,
+  `lean-toolchain` and `REQUIREMENTS.md` still need you, as do milestone
+  acceptance and `needs-human` questions.
+
+  Both rest on a GitHub App whose key only the gatekeeper holds. The
+  gatekeeper runs beside the agents and answers only the coordinator's
+  container, so a library agent can't pass its own `API.lock` or release.
+
+### Setting up level 3
+
+1. Create a GitHub App owned by the organisation (**Settings → Developer
+   settings → GitHub Apps → New GitHub App**). Name it, for example
+   `inkproof-gatekeeper`; give it any homepage URL; turn the webhook off.
+   Repository permissions: **Checks**, **Contents**, **Issues** and **Pull
+   requests** read and write (Metadata read is added automatically). Nothing
+   else. Allow installation only on this account.
+2. Generate a private key and save it as `secrets/gatekeeper/app-key.pem`,
+   readable only by you (`chmod 600`).
+3. Install the App on the organisation, choosing **Only select
+   repositories** and every `inkproof-` repository.
+4. In `.env`, set `APP_ID` to the App's ID (on its settings page) and
+   `APP_BOT` to its account, the App's slug followed by `[bot]`, for example
+   `inkproof-gatekeeper[bot]`.
+5. Run `scripts/up.sh`. With the key in place, it starts the gatekeeper too;
+   `docker compose logs gatekeeper` should show it serving.
+6. For each library you raise: run `scripts/setup-repo.sh <repo> 3`, then
+   remove the `/API.lock` line from its `.github/CODEOWNERS`, as yourself.
+   The script reminds you if the line is still there.
+
+To fall back, run `scripts/setup-repo.sh <repo> 2` and restore the
+`/API.lock` line. To retire level 3 altogether, also remove the key, unset
+`APP_ID` and `APP_BOT`, and uninstall the App.
 
 Before raising a level, look at how often you revert agents' work, how many
 requests are resolved without you, and whether consumers drift toward
@@ -255,6 +310,13 @@ an extra account, App or secret.
   one per blocked dependency, and the coordinator about four per
   repository, a few hundred an hour in all at the default interval.
 - **GitHub Actions**: one `checks` run per push, as before.
+
+Level 3 adds the gatekeeper, a small container on your machine, and a GitHub
+App, which costs nothing. The gatekeeper polls every minute
+(`GATEKEEPER_POLL_INTERVAL`) under the App's own rate limit, a few requests
+per repository and per open pull request, so it uses none of the machine
+user's. Verdicts and releases are coordinator runs, counted in its cap like
+any other. While your machine is off, nothing runs at any level.
 
 ## Using VS Code
 
@@ -317,7 +379,7 @@ current documentation, then remove it from this list.
       invalidating the others.
 - [ ] The deny rules hold in the `dontAsk` permission mode unattended runs
       use, and `managed-settings.json` allows everything agents routinely
-      need: in `dontAsk` anything else is silently refused.
+      need: in `dontAsk` anything else is refused without a prompt.
 - [ ] Running Claude unattended with the shared login is within the terms
       of that account's plan; if not, give unattended runs an API key.
 - [ ] `UserPromptSubmit` fires for the prompt `agent-run` passes on the
@@ -326,6 +388,15 @@ current documentation, then remove it from this list.
 - [ ] `gh pr list --json` returns `mergeStateStatus` as `BEHIND` for a pull
       request behind `main`, and `gh pr update-branch` exists in the pinned
       `gh`.
+- [ ] A ruleset's required status check with `integration_id` accepts the
+      check only from that App, and an `Integration` bypass actor on
+      `release-tags` lets the App create `v*` tags.
+- [ ] Removing a label from an issue with the App's token, then adding it
+      again, produces a fresh `labeled` event the coordinator's watcher sees.
+- [ ] `GET .../commits/{sha}/check-runs?app_id=` filters to the App's own
+      runs, and the newest run for a name is the one rulesets use.
+- [ ] `docker compose up` without `--profile gatekeeper` leaves the
+      gatekeeper and its bind-mounted key folder alone at levels 1 and 2.
 - [ ] Concurrent use of `elan-shared` (agents and other projects installing
       toolchains at once) is safe; `agent-init` serialises only the agents.
 
@@ -342,9 +413,22 @@ current documentation, then remove it from this list.
   agent can do. Audit token repository lists and collaborator roles
   periodically.
 - **All agents share one machine user**, so GitHub can't tell them apart.
-  Agents identify themselves in commit names and with `From:` in requests.
-  GitHub Apps (one per agent, minted by a small token service outside the
-  containers) would give separate identities and short-lived tokens.
+  Agents identify themselves in commit names and with `From:` in comments.
+  Only the coordinator's verdicts and releases come from another identity,
+  the GitHub App; giving every agent its own App would separate the rest.
+- **At level 3 the coordinator is the `API.lock` gate.** It reads text the
+  library agents write, so a library that misleads it, or a coordinator
+  that is simply wrong, can get a weak theorem merged and released.
+  Milestone review is the backstop, after consumers may have upgraded, so
+  raise a library to level 3 only once the coordinator's advisory reviews
+  have been reliable.
+- **Agents may run any shell command but a short deny list.** Unattended
+  runs can't ask you to approve a command, so `managed-settings.json`
+  allows all of Bash and denies force pushes, tags, `git config`, `gh api`,
+  `gh repo`, `gh auth`, `gh release`, `curl` and `wget`. A determined agent
+  can get round the deny list, for example with a script, as it already
+  could through `lake`; what stops it is GitHub (tokens and rulesets) and
+  the proxy, not the list.
 - **The run log is the agent's to edit.** `watch-work` runs as the agent's
   user and keeps its state in `/workspace/.inkproof`, so an agent could
   rewrite its own history in `scripts/status.sh`. GitHub's record is the

@@ -11,10 +11,10 @@ You are one of several Claude agents. Each agent owns exactly one GitHub reposit
 
 - Work on a branch per task: `agent/$AGENT_NAME/<short-name>`, or `agent/$AGENT_NAME/req-<issue>-<short-name>` for a request.
 - Make small commits with clear messages. Reference request issues as `Refs <owner>/<repo>#<n>`. Never use `Fixes`/`Closes`: requesters close their own requests after verifying.
-- Never rewrite history that has been pushed, never force-push, never create tags or releases. The human releases.
+- Never rewrite history that has been pushed, never force-push, never create tags or releases. The human releases, or at autonomy level 3 the coordinator does.
 - Open a pull request into `main`, then run `gh pr merge --auto --squash`. Where the repository allows auto-merge, GitHub merges it once all checks pass and any review it needs is given; otherwise the command fails and the human merges it. Never try to bypass a failing check.
 - If a pull request falls behind `main`, bring it up to date with `gh pr update-branch`.
-- Changes to `API.lock` (public declarations and theorem statements) need the human's review. Say clearly in the pull request why the API must change.
+- Changes to `API.lock` (public declarations and theorem statements) need review: the human's where `.github/CODEOWNERS` lists `/API.lock`, and otherwise (autonomy level 3) the coordinator's `api-lock` verdict. Say clearly in the pull request why the API must change, and which requirement each new or changed theorem statement meets.
 
 ## Comments
 
@@ -39,9 +39,9 @@ Requests are open issues labelled `request` and `new`. For each one, remove `new
 - **Accept**: add `accepted` and comment with your plan.
 - **Counter-propose**: add `counter-proposal` and explain the alternative.
 - **Reject**: comment with your reasons and close the issue as not planned. Protecting the cohesion of your project is a valid reason.
-- **Escalate**: if accepting it would change `API.lock`, add `needs-approval` and wait for the human.
+- **Escalate**: add `needs-human` and wait for the human when the decision is theirs: a question or trade-off that needs their judgement; a change to `.github/`, `lean-toolchain` or `REQUIREMENTS.md`; or, where `.github/CODEOWNERS` lists `/API.lock`, a change to `API.lock`.
 
-When the work is merged, add `ready-for-release` and comment with the pull request link. After the human releases it, comment with the release tag. The requester then upgrades, checks the acceptance criteria, adds `verified` and closes the issue.
+When the work is merged and `CHANGELOG.md` on `main` has its entry for the next release (see Definition of done), add `ready-for-release` and comment with the pull request link. At autonomy level 3 the coordinator verifies and releases it, and the release tag is commented on the issue for you; otherwise, after the human releases it, comment with the release tag. The requester then upgrades, checks the acceptance criteria, adds `verified` and closes the issue.
 
 ## Requirements
 
@@ -53,7 +53,7 @@ If you think a requirement is wrong, missing, or in conflict with your brief, op
 
 ## Conventions
 
-Your repository's CLAUDE.md sets its conventions and its DESIGN.md describes its design. Where CLAUDE.md says to stop and ask, file a request or add `needs-approval` as described above; where it forbids source control changes, this protocol permits the ones described here.
+Your repository's CLAUDE.md sets its conventions and its DESIGN.md describes its design. Where CLAUDE.md says to stop and ask, file a request or add `needs-human` as described above; where it forbids source control changes, this protocol permits the ones described here.
 
 ## Finishing a task
 
@@ -61,4 +61,4 @@ Sessions start on their own when your repositories have work for you, and no one
  
 ## Definition of done
 
-A pull request is ready only when the build passes without warnings, all tests pass natively and, for code that runs in the browser, under Lasm, and `API.lock` is up to date. Update `CHANGELOG.md` only when preparing a release, one short sentence per release.
+A pull request is ready only when the build passes without warnings, all tests pass natively and, for code that runs in the browser, under Lasm, and `API.lock` is up to date. Update `CHANGELOG.md` only when preparing a release: a `## vX.Y.Z` heading for the next version, then one short sentence. The version follows from `git diff <last release tag> -- API.lock`: before 1.0, minor if `API.lock` changed and patch otherwise; from 1.0, major if a line was removed or changed, minor if lines were only added, and patch otherwise. If more work merges before the release, update the same entry, including its version.

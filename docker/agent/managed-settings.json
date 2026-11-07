@@ -1,47 +1,10 @@
 {
   "permissions": {
     "allow": [
+      "Bash",
       "Edit",
       "Write",
-      "mcp__lean-lsp",
-      "Bash(lake:*)",
-      "Bash(lean:*)",
-      "Bash(lasm:*)",
-      "Bash(git status:*)",
-      "Bash(git diff:*)",
-      "Bash(git log:*)",
-      "Bash(git show:*)",
-      "Bash(git switch:*)",
-      "Bash(git checkout:*)",
-      "Bash(git branch:*)",
-      "Bash(git restore:*)",
-      "Bash(git stash:*)",
-      "Bash(git merge:*)",
-      "Bash(git rebase:*)",
-      "Bash(git rev-parse:*)",
-      "Bash(git ls-files:*)",
-      "Bash(git mv:*)",
-      "Bash(git rm:*)",
-      "Bash(git add:*)",
-      "Bash(git commit:*)",
-      "Bash(git clone:*)",
-      "Bash(git pull:*)",
-      "Bash(git fetch:*)",
-      "Bash(git push:*)",
-      "Bash(gh issue:*)",
-      "Bash(gh pr:*)",
-      "Bash(gh search:*)",
-      "Bash(ls:*)",
-      "Bash(cat:*)",
-      "Bash(head:*)",
-      "Bash(tail:*)",
-      "Bash(wc:*)",
-      "Bash(sort:*)",
-      "Bash(diff:*)",
-      "Bash(grep:*)",
-      "Bash(find:*)",
-      "Bash(jq:*)",
-      "Bash(mkdir:*)"
+      "mcp__lean-lsp"
     ],
     "deny": [
       "Bash(git push --force:*)",
@@ -61,21 +24,30 @@
     "SessionStart": [
       {
         "hooks": [
-          { "type": "command", "command": "/usr/local/bin/activity-hook session-start" }
+          {
+            "type": "command",
+            "command": "/usr/local/bin/activity-hook session-start"
+          }
         ]
       }
     ],
     "UserPromptSubmit": [
       {
         "hooks": [
-          { "type": "command", "command": "/usr/local/bin/activity-hook busy" }
+          {
+            "type": "command",
+            "command": "/usr/local/bin/activity-hook busy"
+          }
         ]
       }
     ],
     "Stop": [
       {
         "hooks": [
-          { "type": "command", "command": "/usr/local/bin/check-inbox.sh" }
+          {
+            "type": "command",
+            "command": "/usr/local/bin/check-inbox.sh"
+          }
         ]
       }
     ]
