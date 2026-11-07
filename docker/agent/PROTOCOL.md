@@ -37,13 +37,13 @@ Requests are open issues labelled `request` and `new`. For each one, remove `new
 
 When the work is merged, add `ready-for-release` and comment with the pull request link. After the human releases it, comment with the release tag. The requester then upgrades, checks the acceptance criteria, adds `verified` and closes the issue.
 
-+## Requirements
-+
-+`REQUIREMENTS.md` in `$GH_OWNER/inkproof-coordination` is background for every agent. Agents other than the coordinator read it from their own clone at `/workspace/inkproof-coordination`, created with `git clone` and refreshed with `git pull` before use, and never commit to it.
-+
-+Its design principles and cross-cutting sections (floating-point strategy, process, platform, validation, trusted computing base) apply to your work. Your brief sets your scope: take on your library's other requirements only when a brief or the coordinator brings them in, and never work on another library's.
-+
-+If you think a requirement is wrong, missing, or in conflict with your brief, open an issue on `$GH_OWNER/inkproof-coordination` with labels `request` and `new`, rather than acting on your own reading.
+## Requirements
+
+`REQUIREMENTS.md` in `$GH_OWNER/inkproof-coordination` is background for every agent. Agents other than the coordinator read it from their own clone at `/workspace/inkproof-coordination`, created with `git clone` and refreshed with `git pull` before use, and never commit to it.
+
+Its design principles and cross-cutting sections (floating-point strategy, process, platform, validation, trusted computing base) apply to your work. Your brief sets your scope: take on your library's other requirements only when a brief or the coordinator brings them in, and never work on another library's.
+
+If you think a requirement is wrong, missing, or in conflict with your brief, open an issue on `$GH_OWNER/inkproof-coordination` with labels `request` and `new`, rather than acting on your own reading.
 
 ## Conventions
 
