@@ -22,7 +22,8 @@ keeps it separate from the organisation's other work.
 
 ```
 compose.yaml                 proxy + one service per agent
-.env.example                 organisation, repo prefix, machine user, your username, UID/GID
+.env.example                 organisation, repo prefix, machine user, your username,
+                             UID/GID; GitHub App (level 3); poll and run limits
 secrets/<agent>/             write-token and read-token files (never committed)
 secrets/gatekeeper/          app-key.pem, the GitHub App's private key (level 3)
 docker/agent/                agent image and the policy baked into it
