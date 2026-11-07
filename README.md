@@ -252,7 +252,11 @@ can raise it one library at a time.
 - **Level 3**: as level 2, but the coordinator, not you, gates `API.lock` and
   releases. A pull request that changes `API.lock` can't merge until the
   coordinator records a passing `api-lock` verdict for its head commit; one
-  that doesn't passes that check at once. The coordinator releases work that
+  that doesn't passes that check at once. A verdict carries over to later
+  commits as long as `API.lock` itself is identical, so bringing a pull
+  request up to date with `main` needs no new verdict unless `main` changed
+  `API.lock` too. While a repository's `CODEOWNERS` still lists `/API.lock`,
+  the check passes at once and your review is the gate. The coordinator releases work that
   is `ready-for-release` and meets its acceptance criteria, at the version
   the gatekeeper computes from the `API.lock` diff since the last tag
   (before 1.0: minor if it changed, patch otherwise; from 1.0: major if a

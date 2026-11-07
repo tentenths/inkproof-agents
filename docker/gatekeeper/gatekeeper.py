@@ -10,13 +10,19 @@ network), and only through two operations:
       Releases the default branch if every issue is `ready-for-release` and
       CHANGELOG.md has an entry for the version computed from API.lock.
 
-On its own, every POLL_INTERVAL seconds, it passes `api-lock` on pull requests
-that leave API.lock alone, marks the others as waiting (with the
-`needs-verdict` label, which wakes the coordinator), and mentions the human on
-issues newly labelled `needs-human`.
+On its own, every POLL_INTERVAL seconds, it settles `api-lock` on each new head
+commit of an open pull request, and mentions the human on issues newly
+labelled `needs-human`. A head commit's check:
+  - passes if the pull request leaves API.lock alone, or if the base branch's
+    .github/CODEOWNERS lists /API.lock, since the human reviews it there;
+  - repeats the coordinator's last verdict on the pull request if API.lock at
+    this commit is identical to the API.lock it judged;
+  - otherwise waits, with the `needs-verdict` label, which wakes the
+    coordinator.
 """
 import base64
 import calendar
+import hashlib
 import json
 import os
 import re
@@ -34,6 +40,9 @@ HUMAN = os.environ["HUMAN_USER"]
 POLL = int(os.environ.get("POLL_INTERVAL", "60"))
 KEY = "/run/gatekeeper/app-key.pem"
 STATE = "/state/needs-human-seen.json"
+VERDICTS = "/state/verdicts.json"
+CODEOWNERS_PATHS = (".github/CODEOWNERS", "CODEOWNERS", "docs/CODEOWNERS")
+HUMAN_OWNS_LOCK = re.compile(r"^\s*/API\.lock\s", re.MULTILINE)
 API = "https://api.github.com"
 CHECK = "api-lock"
 WAITING = "needs-verdict"
@@ -165,24 +174,83 @@ def api_lock_runs(repo, sha):
     return call("GET", f"/repos/{repo}/commits/{sha}/check-runs?check_name={CHECK}&app_id={APP_ID}")["check_runs"]
 
 
+def human_owns_api_lock(repo, branch):
+    """Whether CODEOWNERS on the base branch, not the pull request's own copy,
+    gives API.lock to the human, as below autonomy level 3."""
+    for path in CODEOWNERS_PATHS:
+        owners = file_at(repo, path, branch)
+        if owners is not None:
+            return bool(HUMAN_OWNS_LOCK.search(owners + "\n"))
+    return False
+
+
+def lock_digest(repo, sha):
+    return hashlib.sha256((file_at(repo, "API.lock", sha) or "").encode()).hexdigest()
+
+
+# The coordinator's latest verdict on each pull request, with a digest of the
+# API.lock it judged, so that a later commit with the same API.lock (an update
+# from the base branch that brings in other files) keeps it.
+_verdicts_lock = threading.Lock()
+
+
+def load_verdicts():
+    try:
+        with open(VERDICTS) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def remember_verdict(key, record):
+    with _verdicts_lock:
+        verdicts = load_verdicts()
+        verdicts.pop(key, None)
+        verdicts[key] = record
+        for old in list(verdicts)[:-500]:
+            del verdicts[old]
+        with open(VERDICTS + ".tmp", "w") as f:
+            json.dump(verdicts, f)
+        os.replace(VERDICTS + ".tmp", VERDICTS)
+
+
+def completed_check(repo, sha, passed, title, summary):
+    call("POST", f"/repos/{repo}/check-runs", {
+        "name": CHECK, "head_sha": sha, "status": "completed",
+        "conclusion": "success" if passed else "failure",
+        "output": {"title": title, "summary": summary}})
+
+
 def triage_pull_request(repo, pr):
-    sha = pr["head"]["sha"]
+    sha, number = pr["head"]["sha"], pr["number"]
     if api_lock_runs(repo, sha):
         return
-    if changes_api_lock(repo, pr["number"]):
-        call("POST", f"/repos/{repo}/check-runs", {
-            "name": CHECK, "head_sha": sha, "status": "in_progress",
-            "output": {"title": "Waiting for the coordinator's verdict",
-                       "summary": "This pull request changes API.lock, so it cannot merge until the coordinator has compared its theorem statements with their requirements."}})
-        # Removing first makes a fresh "labeled" event even if an earlier
-        # commit was already waiting, so the coordinator is woken again.
-        remove_label(repo, pr["number"], WAITING)
-        call("POST", f"/repos/{repo}/issues/{pr['number']}/labels", {"labels": [WAITING]})
-        log(f"{repo}#{pr['number']} changes API.lock at {sha[:12]}; waiting for the coordinator")
-    else:
-        call("POST", f"/repos/{repo}/check-runs", {
-            "name": CHECK, "head_sha": sha, "status": "completed", "conclusion": "success",
-            "output": {"title": "API.lock unchanged", "summary": "This pull request does not change API.lock, so it needs no verdict."}})
+    if not changes_api_lock(repo, number):
+        completed_check(repo, sha, True, "API.lock unchanged",
+                        "This pull request does not change API.lock, so it needs no verdict.")
+        return
+    if human_owns_api_lock(repo, pr["base"]["ref"]):
+        completed_check(repo, sha, True, "The human reviews API.lock here",
+                        "CODEOWNERS lists /API.lock, so the human's code-owner review gates this change, not the coordinator's verdict.")
+        remove_label(repo, number, WAITING)
+        return
+    previous = load_verdicts().get(f"{repo}#{number}")
+    if previous and previous["lock"] == lock_digest(repo, sha):
+        passed = previous["result"] == "pass"
+        completed_check(repo, sha, passed,
+                        f"Carried over: the coordinator {'passed' if passed else 'failed'} API.lock",
+                        f"API.lock at this commit is identical to the one the coordinator judged at {previous['sha'][:12]}, so its verdict stands.\n\n{previous['summary']}")
+        log(f"{repo}#{number} at {sha[:12]} keeps the {previous['result']} verdict from {previous['sha'][:12]}")
+        return
+    call("POST", f"/repos/{repo}/check-runs", {
+        "name": CHECK, "head_sha": sha, "status": "in_progress",
+        "output": {"title": "Waiting for the coordinator's verdict",
+                   "summary": "This pull request changes API.lock, so it cannot merge until the coordinator has compared its theorem statements with their requirements."}})
+    # Removing first makes a fresh "labeled" event even if an earlier
+    # commit was already waiting, so the coordinator is woken again.
+    remove_label(repo, number, WAITING)
+    call("POST", f"/repos/{repo}/issues/{number}/labels", {"labels": [WAITING]})
+    log(f"{repo}#{number} changes API.lock at {sha[:12]}; waiting for the coordinator")
 
 
 def verdict(req):
@@ -213,6 +281,8 @@ def verdict(req):
     else:
         call("POST", f"/repos/{repo}/check-runs", body)
     remove_label(repo, number, WAITING)
+    remember_verdict(f"{repo}#{number}", {"sha": head, "lock": lock_digest(repo, head),
+                                          "result": result, "summary": summary})
     log(f"verdict {result} on {repo}#{number} at {head[:12]}")
     return f"Recorded {result} for {repo}#{number} at {head[:12]}."
 
