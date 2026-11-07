@@ -44,8 +44,8 @@ templates/repo/              copy into every repository: CLAUDE.md, CI, pin
 templates/rulesets/          rulesets applied by scripts/setup-repo.sh
 .devcontainer/<agent>/       one devcontainer.json per agent, for VS Code
 control/                     pause state, mounted read-only into agents (not committed)
-scripts/                     up, agent, setup-repo, status, release, pause,
-                             resume, milestone-diff
+scripts/                     up, down, agent, setup-repo, status, release,
+                             pause, resume, milestone-diff
 ```
 
 ## How the boundaries are enforced
@@ -232,6 +232,11 @@ and rely on those notifications alone.
   ```
 
 - `docker compose logs proxy | grep DENIED` shows blocked network requests.
+- `scripts/down.sh` stops everything, the gatekeeper included, and keeps the
+  volumes; `scripts/up.sh` starts it again. A plain `docker compose down`
+  leaves the gatekeeper running, because it only runs under the
+  `gatekeeper` profile. Pausing stops sessions but not the watchers'
+  polling, so stop the containers to stop all GitHub traffic.
 - When you accept a milestone, `scripts/milestone-diff.sh <start-date>` shows
   every library's `API.lock` diff across it, including everything the
   coordinator passed at level 3. A change you reject is fixed forward: file
