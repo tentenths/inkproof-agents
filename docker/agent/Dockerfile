@@ -42,10 +42,13 @@ RUN userdel -r node \
 # Policy and helpers the agent cannot edit.
 COPY managed-settings.json PROTOCOL.md /etc/claude-code/
 COPY gitconfig /etc/gitconfig
-COPY check-inbox.sh git-credential-agent gh-agent agent-init /usr/local/bin/
+COPY check-inbox.sh git-credential-agent gh-agent agent-init \
+     watch-work agent-run activity-hook run-status /usr/local/bin/
 RUN chmod 0644 /etc/claude-code/* /etc/gitconfig \
  && chmod 0755 /usr/local/bin/check-inbox.sh /usr/local/bin/git-credential-agent \
                /usr/local/bin/gh-agent /usr/local/bin/agent-init \
+               /usr/local/bin/watch-work /usr/local/bin/agent-run \
+               /usr/local/bin/activity-hook /usr/local/bin/run-status \
  && ln -s /usr/local/bin/gh-agent /usr/local/bin/gh
 
 USER agent

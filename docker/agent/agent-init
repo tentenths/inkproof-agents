@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Container entrypoint: clone the agent's own repository on first start,
-# then idle until someone attaches (scripts/agent.sh or VS Code).
+# then run watch-work, which starts a session whenever there is work.
 # The clone is retried for a few minutes, so a proxy that is still starting
 # (or briefly down) doesn't leave the agent without its repository.
 set -uo pipefail
@@ -36,4 +36,10 @@ fi
   claude mcp add --scope user lean-lsp -- lean-lsp-mcp >/dev/null 2>&1 || true
 ) 9>"$HOME/.claude/.agent-init.lock"
 
-exec sleep infinity
+# Start sessions when there is work. Keep the watcher running if it ever fails,
+# so the container (and anyone attached to it) stays up.
+while true; do
+  /usr/local/bin/watch-work
+  echo "agent-init: watch-work exited (status $?); restarting in 60s" >&2
+  sleep 60
+done

@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Claude Code UserPromptSubmit hook: record that Claude is working, so
+# watch-work leaves the session alone. check-inbox.sh records when it is idle.
+cat > /dev/null
+mkdir -p /workspace/.inkproof
+printf 'busy %s\n' "$(date +%s)" > /workspace/.inkproof/activity
+exit 0

@@ -12,8 +12,13 @@ You are one of several Claude agents. Each agent owns exactly one GitHub reposit
 - Work on a branch per task: `agent/$AGENT_NAME/<short-name>`, or `agent/$AGENT_NAME/req-<issue>-<short-name>` for a request.
 - Make small commits with clear messages. Reference request issues as `Refs <owner>/<repo>#<n>`. Never use `Fixes`/`Closes`: requesters close their own requests after verifying.
 - Never rewrite history that has been pushed, never force-push, never create tags or releases. The human releases.
-- Open a pull request into `main`. Depending on the repository's settings, either the human merges it, or you may merge it yourself with `gh pr merge --squash` once all checks pass. Never try to bypass a failing check.
+- Open a pull request into `main`, then run `gh pr merge --auto --squash`. Where the repository allows auto-merge, GitHub merges it once all checks pass and any review it needs is given; otherwise the command fails and the human merges it. Never try to bypass a failing check.
+- If a pull request falls behind `main`, bring it up to date with `gh pr update-branch`.
 - Changes to `API.lock` (public declarations and theorem statements) need the human's review. Say clearly in the pull request why the API must change.
+
+## Comments
+
+All agents post as the same GitHub account, so start every issue and pull request comment with `From: $AGENT_NAME`. A trusted comment that needs a reply starts a session for the agent that owns the repository. When yours needs none, such as an acknowledgement or a thank-you, start it with `From: $AGENT_NAME (no reply needed)` instead, so it starts no one's session.
 
 ## Dependencies
 
@@ -24,7 +29,8 @@ You are one of several Claude agents. Each agent owns exactly one GitHub reposit
 If a library you depend on is missing something, or is wrong, do **not** reimplement it, copy its code, reach into its internals, or bend your design around the gap. Instead:
 
 1. Open an issue on that library's repository using the request template, with labels `request` and `new`: `gh issue create -R $GH_OWNER/<library> --template request.md --label request --label new`. Start the body with `From: $AGENT_NAME`.
-2. Mark your own task as blocked on that issue and move to other work.
+2. Mark your own task as blocked on that issue: add the `blocked` label to your task's issue, and a line `Blocked-by: <owner>/<repo>#<n>` to its body or a comment. A session starts for you when that repository publishes a release. Remove `blocked` once you are no longer waiting.
+3. Move to other work.
 
 ## Handling requests on your repository
 
@@ -51,7 +57,7 @@ Your repository's CLAUDE.md sets its conventions and its DESIGN.md describes its
 
 ## Finishing a task
 
-When a task is done, record what you did and why in its pull request description or issue comment, not only in your session. Then take the next unblocked task within your brief. If nothing is unblocked, say so and stop.
+Sessions start on their own when your repositories have work for you, and no one may be watching. When a task is done, record what you did and why in its pull request description or issue comment, not only in your session. Then take the next unblocked task within your brief. If nothing is unblocked, say so and stop.
  
 ## Definition of done
 

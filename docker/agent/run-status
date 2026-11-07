@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# This agent's automatic runs, for scripts/status.sh.
+#   usage: run-status [number of recent runs, default 5]
+set -uo pipefail
+state=/workspace/.inkproof
+
+today="$(jq -r '.start // empty' "$state/runs.jsonl" 2>/dev/null | grep -c "^$(date -u +%F)")"
+pending="$(grep -c . "$state/pending" 2>/dev/null)"
+if [ -e "$state/current" ]; then
+  now="running since $(jq -r .start "$state/current")"
+  today=$(( today + 1 ))
+  tmux list-clients -t =claude 2>/dev/null | grep -q . && now+=", human attached"
+elif tmux has-session -t =claude 2>/dev/null; then
+  now="interactive session open"
+else
+  now="no session"
+fi
+[ -e /etc/inkproof/control/paused ] && now+=", paused"
+echo "  ${now}; runs today ${today}/${MAX_RUNS_PER_DAY:-20}; triggers waiting ${pending:-0}"
+
+tail -n "${1:-5}" "$state/runs.jsonl" 2>/dev/null | jq -r '
+  if .outcome == "capped" then "  \(.at)  daily cap reached, \(.pending) triggers waiting"
+  else "  \(.start) to \(.end)  \(.outcome)  [\(.trigger | join("; "))]" end'

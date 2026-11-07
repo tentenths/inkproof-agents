@@ -1,24 +1,47 @@
 {
   "permissions": {
     "allow": [
+      "Edit",
+      "Write",
+      "mcp__lean-lsp",
       "Bash(lake:*)",
       "Bash(lean:*)",
       "Bash(lasm:*)",
       "Bash(git status:*)",
       "Bash(git diff:*)",
       "Bash(git log:*)",
+      "Bash(git show:*)",
       "Bash(git switch:*)",
+      "Bash(git checkout:*)",
+      "Bash(git branch:*)",
+      "Bash(git restore:*)",
+      "Bash(git stash:*)",
+      "Bash(git merge:*)",
+      "Bash(git rebase:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(git ls-files:*)",
+      "Bash(git mv:*)",
+      "Bash(git rm:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
+      "Bash(git clone:*)",
       "Bash(git pull:*)",
       "Bash(git fetch:*)",
       "Bash(git push:*)",
       "Bash(gh issue:*)",
       "Bash(gh pr:*)",
+      "Bash(gh search:*)",
       "Bash(ls:*)",
       "Bash(cat:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(wc:*)",
+      "Bash(sort:*)",
+      "Bash(diff:*)",
       "Bash(grep:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(jq:*)",
+      "Bash(mkdir:*)"
     ],
     "deny": [
       "Bash(git push --force:*)",
@@ -35,6 +58,13 @@
     ]
   },
   "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          { "type": "command", "command": "/usr/local/bin/activity-hook" }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [

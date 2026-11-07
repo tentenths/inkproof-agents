@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Build and start the proxy and every agent container. Each agent clones its
-# repository on first start, then idles until you attach.
+# repository on first start, then starts sessions whenever it has work.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 [ -f .env ] || { echo "Create .env from .env.example first." >&2; exit 1; }
+mkdir -p control   # mounted into every agent; must exist before Docker creates it as root
 
 missing=0
 for f in $(docker compose config --format json | jq -r '.secrets[].file'); do

@@ -10,6 +10,8 @@
 # into it.
 # What it may write to is decided by its GitHub tokens (secrets/<agent>/) and
 # by the rulesets on each repository, not by mounts.
+# control/ is mounted read-only, so only the human can pause agents
+# (scripts/pause.sh, scripts/resume.sh).
 #
 # To add an agent: copy a service block, add its volumes and secrets, a role
 # file and a devcontainer.json, and create its tokens.
@@ -41,6 +43,13 @@ x-agent: &agent
     TRUSTED_AUTHORS: ${MACHINE_USER:?set MACHINE_USER in .env} ${HUMAN_USER:?set HUMAN_USER in .env}
     GIT_AUTHOR_EMAIL: ${MACHINE_EMAIL:?set MACHINE_EMAIL in .env}
     GIT_COMMITTER_EMAIL: ${MACHINE_EMAIL}
+    REPO_PREFIX: ${REPO_PREFIX:?set REPO_PREFIX in .env}
+    HUMAN_USER: ${HUMAN_USER}
+    # watch-work: how often to poll GitHub (seconds), how many runs each agent
+    # may start per day (UTC), and how long a run may stay busy unattended.
+    POLL_INTERVAL: ${POLL_INTERVAL:-300}
+    MAX_RUNS_PER_DAY: ${MAX_RUNS_PER_DAY:-20}
+    MAX_RUN_MINUTES: ${MAX_RUN_MINUTES:-240}
 
 services:
   proxy:
@@ -66,6 +75,7 @@ services:
       - { source: coordinator-read, target: read_token }
     volumes:
       - ./roles/coordinator.md:/etc/claude-code/CLAUDE.md:ro
+      - ./control:/etc/inkproof/control:ro
       - work-coordinator:/workspace
       - claude-agents:/home/agent/.claude
       - elan-shared:/home/agent/.elan
@@ -85,6 +95,7 @@ services:
       - { source: core-read, target: read_token }
     volumes:
       - ./roles/core.md:/etc/claude-code/CLAUDE.md:ro
+      - ./control:/etc/inkproof/control:ro
       - work-core:/workspace
       - claude-agents:/home/agent/.claude
       - elan-shared:/home/agent/.elan
@@ -104,6 +115,7 @@ services:
       - { source: scale-read, target: read_token }
     volumes:
       - ./roles/scale.md:/etc/claude-code/CLAUDE.md:ro
+      - ./control:/etc/inkproof/control:ro
       - work-scale:/workspace
       - claude-agents:/home/agent/.claude
       - elan-shared:/home/agent/.elan
@@ -123,6 +135,7 @@ services:
       - { source: consumer-metrics-read, target: read_token }
     volumes:
       - ./roles/consumer-metrics.md:/etc/claude-code/CLAUDE.md:ro
+      - ./control:/etc/inkproof/control:ro
       - work-consumer-metrics:/workspace
       - claude-agents:/home/agent/.claude
       - elan-shared:/home/agent/.elan

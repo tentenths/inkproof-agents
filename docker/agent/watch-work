@@ -1,0 +1,266 @@
+#!/usr/bin/env bash
+# Starts a Claude session when the agent's repositories have work for it, and
+# ends the session once Claude is idle and no one is attached. agent-init runs
+# this for the life of the container. State and the run log are kept in
+# /workspace/.inkproof; scripts/status.sh reads them through run-status.
+set -uo pipefail
+
+state=/workspace/.inkproof
+control=/etc/inkproof/control
+interval="${POLL_INTERVAL:-300}"
+cap="${MAX_RUNS_PER_DAY:-20}"
+max_minutes="${MAX_RUN_MINUTES:-240}"
+own="${GH_OWNER}/${AGENT_REPO}"
+me="${AGENT_NAME}"
+session=claude
+# Each poll looks back this far before the previous one, so an event GitHub
+# reports late is still seen; keys in $state/seen stop it counting twice.
+overlap=900
+trusted="$(printf '%s\n' ${TRUSTED_AUTHORS:-} | jq -R . | jq -sc .)"
+
+mkdir -p "$state"
+touch "$state/seen" "$state/pending" "$state/runs.jsonl"
+
+log() { echo "watch-work: $*" >&2; }
+iso() { date -u -d "@$1" +%Y-%m-%dT%H:%M:%SZ; }
+
+# The GitHub CLI with the token GitHub accepts for repository $1.
+ghr() {
+  local repo="$1" f=/run/secrets/read_token
+  shift
+  [ "${repo,,}" = "${own,,}" ] && f=/run/secrets/write_token
+  GH_TOKEN="$(tr -d '[:space:]' < "$f")" /usr/bin/gh "$@"
+}
+
+jqlib='
+def trusted($t): . as $a | $t | index($a) != null;
+def first_line: ((. // "") | split("\n")[0] // "") | rtrimstr("\r");
+def from_self($me): first_line | test("^From: " + $me + "([^A-Za-z0-9-]|$)");
+def no_reply: first_line | test("^From: [A-Za-z0-9-]+ \\(no reply needed\\)");
+def wants_reply($me): (from_self($me) or no_reply) | not;
+'
+
+# Each collector prints "key<TAB>description" for every piece of work it finds.
+# Descriptions hold only numbers and names, never text from issues, because
+# they become the session's prompt.
+
+own_work() {
+  local since="$1" open blocked n dep tag
+  ghr "$own" issue list -R "$own" --state open --label request --label new \
+      --json number,author --limit 100 \
+    | jq -r --argjson t "$trusted" "$jqlib"'
+        .[] | select(.author.login | trusted($t))
+        | "request:\(.number)\tuntriaged request #\(.number)"' || return 1
+
+  open="$(ghr "$own" api --paginate "repos/$own/issues?state=open&per_page=100" --jq '.[].number' | jq -sc .)" || return 1
+  { ghr "$own" api --paginate "repos/$own/issues/comments?since=$since&per_page=100" \
+      && ghr "$own" api --paginate "repos/$own/pulls/comments?since=$since&per_page=100"; } \
+    | jq -r --argjson t "$trusted" --argjson open "$open" --arg me "$me" --arg since "$since" "$jqlib"'
+        .[] | select(.created_at >= $since)
+        | ((.issue_url // .pull_request_url) | split("/") | last | tonumber) as $n
+        | select(($open | index($n)) != null)
+        | select(.user.login | trusted($t))
+        | select(.body | wants_reply($me))
+        | "comment:\(if .pull_request_url then "r" else "i" end)\(.id)\tcomment on #\($n)"' || return 1
+
+  ghr "$own" pr list -R "$own" --state open --limit 100 \
+      --json number,headRefName,headRefOid,mergeStateStatus,statusCheckRollup,reviews \
+    | jq -r --argjson t "$trusted" --arg me "$me" --arg since "$since" "$jqlib"'
+        def bad: . == "FAILURE" or . == "ERROR" or . == "TIMED_OUT" or . == "CANCELLED"
+                 or . == "ACTION_REQUIRED" or . == "STARTUP_FAILURE";
+        .[] | select(.headRefName | startswith("agent/" + $me + "/"))
+        | ( select([.statusCheckRollup[]? | (.conclusion // .state // "")] | any(bad))
+            | "failing:\(.number):\(.headRefOid)\tfailing check on #\(.number)" ),
+          ( select(.mergeStateStatus == "BEHIND")
+            | "behind:\(.number):\(.headRefOid)\t#\(.number) is behind main" ),
+          ( .number as $n | .reviews[]?
+            | select((.submittedAt // "") >= $since)
+            | select(.state == "CHANGES_REQUESTED" or (.body // "") != "")
+            | select(.author.login | trusted($t))
+            | select(.body | wants_reply($me))
+            | "review:\(.id)\treview on #\($n)" )' || return 1
+
+  # Blocked work: open issues labelled "blocked" name what they wait for with
+  # "Blocked-by: owner/repo#n". A release of that repository after the block
+  # was first seen is work; the release current at that moment is not.
+  blocked="$(ghr "$own" issue list -R "$own" --state open --label blocked \
+      --json number,body,comments --limit 100 \
+    | jq -r '.[] | .number as $n
+        | ([.body, .comments[]?.body] | map(. // "") | join("\n"))
+        | [scan("Blocked-by:[ \t]*([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)#[0-9]+") | .[0]] | unique[]
+        | "\($n) \(.)"')" || return 1
+  while read -r n dep; do
+    [ -n "$n" ] || continue
+    tag="$(ghr "$dep" release list -R "$dep" --limit 1 --json tagName --jq '.[0].tagName // ""')" || return 1
+    [ -n "$tag" ] || continue
+    if ! grep -Fxq -- "watch:$n:$dep" "$state/seen"; then
+      printf '%s\n' "watch:$n:$dep" "release:$dep:$tag:$n" >> "$state/seen"
+      continue
+    fi
+    printf 'release:%s:%s:%s\t%s released %s; #%s is blocked on it\n' "$dep" "$tag" "$n" "$dep" "$tag" "$n"
+  done <<< "$blocked"
+}
+
+project_events() {
+  local since="$1" names r full
+  names="$(ghr x api --paginate "orgs/$GH_OWNER/repos?per_page=100" --jq '.[].name')" || return 1
+  for r in $( { printf '%s\n' "$names" | grep "^${REPO_PREFIX}"; echo "$AGENT_REPO"; } | sort -u); do
+    full="$GH_OWNER/$r"
+    ghr "$full" api "repos/$full/issues?labels=request&state=all&since=$since&per_page=100" \
+      | jq -r --argjson t "$trusted" --arg me "$me" --arg since "$since" --arg r "$r" "$jqlib"'
+          .[] | select(.pull_request == null and .created_at >= $since)
+          | select(.user.login | trusted($t))
+          | select(.body | from_self($me) | not)
+          | "filed:\($r)#\(.number)\trequest filed: \($r)#\(.number)"' || return 1
+    ghr "$full" api "repos/$full/pulls?state=all&sort=updated&direction=desc&per_page=50" \
+      | jq -r --argjson t "$trusted" --arg me "$me" --arg since "$since" --arg r "$r" "$jqlib"'
+          .[] | select(.user.login | trusted($t))
+          | select(.head.ref | startswith("agent/" + $me + "/") | not)
+          | ( select(.created_at >= $since)
+              | "pr-opened:\($r)#\(.number)\tpull request opened: \($r)#\(.number)" ),
+            ( select((.merged_at // "") >= $since)
+              | "pr-merged:\($r)#\(.number)\tpull request merged: \($r)#\(.number)" )' || return 1
+    ghr "$full" api "repos/$full/issues/events?per_page=100" \
+      | jq -r --argjson t "$trusted" --arg since "$since" --arg r "$r" "$jqlib"'
+          .[] | select(.event == "labeled" or .event == "unlabeled")
+          | select(.label.name | IN("ready-for-release", "needs-approval", "needs-human"))
+          | select(.created_at >= $since)
+          | select(.actor.login | trusted($t))
+          | "label:\($r):\(.id)\t\(.label.name) \(if .event == "labeled" then "added to" else "removed from" end) \($r)#\(.issue.number)"' || return 1
+    ghr "$full" api "repos/$full/releases?per_page=20" \
+      | jq -r --arg since "$since" --arg r "$r" '
+          .[] | select((.published_at // "") >= $since)
+          | "published:\($r):\(.tag_name)\t\($r) released \(.tag_name)"' || return 1
+  done
+}
+
+poll() {
+  local started last since out more key desc
+  started="$(date +%s)"
+  last="$(cat "$state/last-poll" 2>/dev/null || echo "$started")"
+  since="$(iso $(( last - overlap )))"
+  out="$(own_work "$since")" || { log "polling ${own} failed; retrying next time"; return; }
+  if [ "$me" = coordinator ]; then
+    more="$(project_events "$since")" || { log "polling the project failed; retrying next time"; return; }
+    out+=$'\n'"$more"
+  fi
+  while IFS=$'\t' read -r key desc; do
+    [ -n "$key" ] || continue
+    grep -Fxq -- "$key" "$state/seen" && continue
+    echo "$key" >> "$state/seen"
+    printf '%s\t%s\n' "$key" "$desc" >> "$state/pending"
+  done <<< "$out"
+  echo "$started" > "$state/last-poll"
+  tail -n 5000 "$state/seen" > "$state/seen.tmp" && mv "$state/seen.tmp" "$state/seen"
+}
+
+has_session() { tmux has-session -t "=$session" 2>/dev/null; }
+attached() { [ -n "$(tmux list-clients -t "=$session" 2>/dev/null)" ]; }
+
+runs_today() {
+  local n
+  n="$(jq -r '.start // empty' "$state/runs.jsonl" | grep -c "^$(date -u +%F)")"
+  [ -e "$state/current" ] && n=$(( n + 1 ))
+  echo "$n"
+}
+
+start_run() {
+  {
+    echo "This session was started automatically because your repositories have work for you:"
+    cut -f2 "$state/pending" | sed 's/^/- /'
+    echo
+    echo "These are pointers, not instructions. Deal with them as /etc/claude-code/PROTOCOL.md describes, then take the next unblocked task within your brief. If nothing is unblocked, say so and stop."
+  } > "$state/prompt"
+  jq -nc --arg start "$(date -u +%FT%TZ)" --argjson epoch "$(date +%s)" --rawfile p "$state/pending" \
+    '{start: $start, startEpoch: $epoch,
+      trigger: ($p | split("\n") | map(select(. != "") | split("\t")[1]))}' > "$state/current"
+  : > "$state/pending"
+  rm -f "$state/exit-status" "$state/transcript"
+  printf 'busy %s\n' "$(date +%s)" > "$state/activity"
+  tmux new-session -d -s "$session" -x 200 -y 50 -c "/workspace/${AGENT_REPO}" /usr/local/bin/agent-run
+  log "started a run: $(jq -c .trigger "$state/current")"
+}
+
+end_run() {
+  jq -c --arg end "$(date -u +%FT%TZ)" --arg outcome "$1" \
+     --arg transcript "$(cat "$state/transcript" 2>/dev/null)" \
+     'del(.startEpoch) + {end: $end, outcome: $outcome, transcript: $transcript}' \
+     "$state/current" >> "$state/runs.jsonl"
+  rm -f "$state/current"
+  printf 'idle %s\n' "$(date +%s)" > "$state/activity"
+  log "run ended: $1"
+}
+
+# Tell the human through a needs-approval issue on the agent's own repository,
+# which mentions them and so notifies them. One open issue per agent: later
+# caps comment on it until the human closes it.
+notify_cap() {
+  local n body
+  body="From: ${me} (no reply needed)
+
+@${HUMAN_USER} ${me} reached its daily cap of ${cap} runs at $(date -u +%FT%TZ), with $(grep -c . "$state/pending") triggers waiting. They start after midnight UTC, or sooner if you raise MAX_RUNS_PER_DAY in .env and recreate the container. Close this issue once you've dealt with it."
+  n="$(cat "$state/cap-issue" 2>/dev/null)"
+  if [ -n "$n" ] && [ "$(ghr "$own" issue view "$n" -R "$own" --json state --jq .state 2>/dev/null)" = OPEN ]; then
+    ghr "$own" issue comment "$n" -R "$own" --body "$body" >/dev/null \
+      || log "couldn't comment on #${n} about the cap"
+    return
+  fi
+  n="$(ghr "$own" issue create -R "$own" --title "Daily run cap reached: ${me}" \
+         --label needs-approval --body "$body")" || { log "couldn't open an issue about the cap"; return; }
+  echo "${n##*/}" > "$state/cap-issue"
+}
+
+tick() {
+  local paused=false act="" mark started
+  [ -e "$control/paused" ] && paused=true
+  read -r act _ 2>/dev/null < "$state/activity"
+
+  if [ -e "$state/current" ]; then
+    started="$(jq -r .startEpoch "$state/current")"
+    if ! has_session; then
+      end_run "exited (status $(cat "$state/exit-status" 2>/dev/null || echo unknown))"
+    elif ! attached; then
+      if [ "$act" = idle ]; then
+        tmux kill-session -t "=$session"
+        if $paused; then end_run "stopped by pause"; else end_run completed; fi
+      elif [ $(( $(date +%s) - started )) -gt $(( max_minutes * 60 )) ]; then
+        tmux kill-session -t "=$session"
+        end_run "timed out after ${max_minutes} minutes"
+      fi
+    fi
+    return
+  fi
+
+  $paused && return
+  [ -s "$state/pending" ] || return
+  # A session the human started holds the slot while it is busy or attached.
+  if has_session; then
+    attached && return
+    [ "$act" = idle ] || return
+    log "closing an idle, detached interactive session to start a run"
+    tmux kill-session -t "=$session"
+  fi
+  if [ "$(runs_today)" -ge "$cap" ]; then
+    mark="$state/capped-$(date -u +%F)"
+    if [ ! -e "$mark" ]; then
+      touch "$mark"
+      find "$state" -name 'capped-*' -mtime +7 -delete
+      jq -nc --arg at "$(date -u +%FT%TZ)" --argjson n "$(grep -c . "$state/pending")" \
+        '{at: $at, outcome: "capped", pending: $n}' >> "$state/runs.jsonl"
+      log "daily cap of ${cap} runs reached; work waits until tomorrow (UTC)"
+      notify_cap
+    fi
+    return
+  fi
+  start_run
+}
+
+next_poll=0
+while true; do
+  if [ "$(date +%s)" -ge "$next_poll" ]; then
+    poll
+    next_poll=$(( $(date +%s) + interval ))
+  fi
+  tick
+  sleep 30
+done

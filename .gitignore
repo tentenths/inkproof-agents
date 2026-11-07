@@ -6,3 +6,6 @@ secrets/**
 # Editor and OS clutter
 .DS_Store
 *.swp
+
+# Pause state, written by scripts/pause.sh
+control/
