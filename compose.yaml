@@ -38,7 +38,6 @@ x-agent: &agent
     NO_PROXY: localhost,127.0.0.1
     no_proxy: localhost,127.0.0.1
     DISABLE_AUTOUPDATER: "1"
-    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1"
     GH_OWNER: ${GH_OWNER:?set GH_OWNER in .env}
     # APP_BOT (level 3) is the GitHub App's account, e.g. inkproof-gatekeeper[bot].
     TRUSTED_AUTHORS: ${MACHINE_USER:?set MACHINE_USER in .env} ${HUMAN_USER:?set HUMAN_USER in .env} ${APP_BOT:-}

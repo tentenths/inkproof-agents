@@ -32,8 +32,7 @@ docker/agent/                agent image and the policy baked into it
   PROTOCOL.md                shared rules: trust, git, requests, done
   check-inbox.sh             Stop hook: keep working while requests are untriaged
   watch-work, agent-run      start a session when there is work; end it when idle
-  activity-hook, run-status  record busy/idle for watch-work; summary for status.sh
-  git-credential-agent       own repo -> write token, others -> read token
+  activity-hook, run-status  record busy/idle for watch-work; summary for status.sh  git-credential-agent       own repo -> write token, others -> read token
   gh-agent                   same choice for the GitHub CLI
   gitconfig, agent-init      git setup; clone own repo on first start
   gate                       the coordinator's commands for the gatekeeper (level 3)
@@ -164,8 +163,9 @@ For each repository:
    so the others are logged in too.
 6. Run `scripts/agent.sh` once for each agent, and accept the prompts to
    trust its folder and to allow external imports in CLAUDE.md (the role
-   file imports `PROTOCOL.md`). Claude asks these once for each agent's
-   folder, even though the login is shared.
+   file imports `PROTOCOL.md`), and, if it asks, to enable Remote Control.
+   Claude asks these once for each agent's folder, even though the login is
+   shared.
 7. Run `scripts/resume.sh`.
 
 If the `claude-agents` volume is ever recreated, repeat steps 5 and 6 with
@@ -345,6 +345,22 @@ What VS Code costs you:
 Isolation, tokens, proxy and policy come from the compose file and GitHub, so
 they're identical either way.
 
+## Remote Control
+
+Every agent's sessions, both `watch-work`'s runs and those `scripts/agent.sh`
+starts, open with Remote Control, named after the agent. So you can watch
+and steer them from the Claude desktop app, claude.ai/code or the Claude
+mobile app, as well as by attaching in a terminal. An agent shows there only
+while it has a session: a run appears when `watch-work` starts it and goes
+when the run ends, so between runs there is nothing to see.
+
+What it costs: Remote Control needs traffic that
+`CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` would turn off, so the agents don't
+set it, and Claude Code also sends whatever else that variable suppresses.
+The proxy already allows the domains it uses. It needs a claude.ai login,
+which the agents have. Anyone signed in to that account can steer the
+agents' sessions.
+
 ## Adding an agent
 
 1. Create its `inkproof-` repository, add the machine user with Write, and
@@ -398,6 +414,8 @@ current documentation, then remove it from this list.
       runs, and the newest run for a name is the one rulesets use.
 - [ ] `docker compose up` without `--profile gatekeeper` leaves the
       gatekeeper and its bind-mounted key folder alone at levels 1 and 2.
+- [ ] Whether Remote Control's enable question is asked once per agent or
+      once for every agent sharing the login.
 - [ ] Concurrent use of `elan-shared` (agents and other projects installing
       toolchains at once) is safe; `agent-init` serialises only the agents.
 

@@ -12,6 +12,6 @@ agent="${1:?usage: scripts/agent.sh <agent> [claude args...]}"; shift || true
 args=""
 for a in "$@"; do args+=" $(printf '%q' "$a")"; done
 
-loop="cd \"/workspace/\$AGENT_REPO\" || exit 1; while true; do claude${args}; status=\$?; echo; echo \"Claude exited (status \$status). Press Enter to restart it, or Ctrl-b d to detach.\"; read -r _; done"
+loop="cd \"/workspace/\$AGENT_REPO\" || exit 1; while true; do claude --remote-control \"\$AGENT_NAME\"${args}; status=\$?; echo; echo \"Claude exited (status \$status). Press Enter to restart it, or Ctrl-b d to detach.\"; read -r _; done"
 
 docker compose exec -it "$agent" tmux new-session -A -s claude bash -c "$loop"

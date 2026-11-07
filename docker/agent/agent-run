@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # One unattended Claude session, started by watch-work inside tmux so that
-# scripts/agent.sh can attach to it. dontAsk denies anything not allowed by
-# managed-settings.json instead of waiting for a prompt no one will answer.
+# scripts/agent.sh can attach to it, and open to Remote Control, named after
+# the agent. dontAsk denies anything not allowed by managed-settings.json
+# instead of waiting for a prompt no one will answer.
 state=/workspace/.inkproof
 export INKPROOF_RUN=1   # tells activity-hook this session was not opened by hand
-claude --permission-mode dontAsk "$(cat "$state/prompt")"
+claude --remote-control "$AGENT_NAME" --permission-mode dontAsk "$(cat "$state/prompt")"
 echo "$?" > "$state/exit-status"
